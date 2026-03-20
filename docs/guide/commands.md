@@ -6,6 +6,7 @@
 - `/discordauth status` - permission: `discordauth.use`
 - `/discordauth reload` - permission: `discordauth.admin`
 - `/discordauth randomizeid [player]` - permission: `discordauth.admin`
+- `/discordauth web [host]` - permission: `discordauth.admin`
 - `/unlink` - permission: `discordauth.use`
 
 ## Discord Slash Commands
@@ -34,4 +35,4 @@ Admins with Manage Server can change config without console access:
 Notes:
 
 - Some keys (like `bot-token` and `discord.guild-id`) require a server restart to fully apply.
-- Sensitive values like `bot-token`, `chat-bridge.webhook-url`, and `web-editor.token` are masked in `/config get`.
+- Treat sensitive values like `bot-token`, `chat-bridge.webhook-url`, and `web-editor.token` as secrets when using `/config`.

@@ -36,11 +36,6 @@ import cc.muhannad.discordauth.utils.AvatarLinkImage
 class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
     private val linkButtonId = "da:linkbutton"
     private val linkModalPrefix = "da:linkmodal"
-    private val sensitiveKeys = setOf(
-        "bot-token",
-        "chat-bridge.webhook-url",
-        "web-editor.token"
-    )
     private val restartKeys = setOf("bot-token", "discord.guild-id", "discord.clear-global-commands")
 
     override fun onReady(event: ReadyEvent) {
@@ -565,7 +560,6 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
     }
 
     private fun formatConfigValue(key: String, value: Any?): String {
-        if (sensitiveKeys.contains(key)) return t("discord.config-hidden")
         return when (value) {
             null -> "null"
             is List<*> -> {
@@ -579,9 +573,7 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
     private fun isConfigKeySupported(key: String): Boolean {
         if (key.isBlank()) return false
         val config = plugin.config
-        if (config.isConfigurationSection(key)) return false
-        if (config.contains(key)) return true
-        return config.defaults?.contains(key) == true
+        return !config.isConfigurationSection(key)
     }
 
     private fun suggestConfigKeys(query: String): List<String> {
