@@ -136,7 +136,7 @@ class ConfigManager(private val plugin: Dis2FAPlugin) {
         cfg.addDefault("chat-bridge.advancement-format", "earned the advancement **{ADVANCEMENT}**")
 
         cfg.addDefault("web-editor.enabled", true)
-        cfg.addDefault("web-editor.bind-address", "0.0.0.0")
+        cfg.addDefault("web-editor.bind-address", "127.0.0.1")
         cfg.addDefault("web-editor.port", 8166)
         cfg.addDefault("web-editor.token", "")
 

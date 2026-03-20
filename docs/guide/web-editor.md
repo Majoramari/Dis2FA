@@ -6,7 +6,7 @@ managing Discord links.
 ## Setup
 
 1. Ensure `web-editor.enabled: true` (default).
-2. Keep `web-editor.bind-address` as `0.0.0.0` for external access, or use `127.0.0.1` for local-only access.
+2. Keep `web-editor.bind-address` as `127.0.0.1` for local access (default). Use `0.0.0.0` for external access.
 3. Set `web-editor.port` if you want a different port.
 4. Reload or restart the server.
 5. Open `http://YOUR_SERVER_IP:8166`.

@@ -95,7 +95,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     fun startFromConfig() {
         val cfg = plugin.config
         val enabled = cfg.getBoolean("web-editor.enabled", false)
-        val newHost = cfg.getString("web-editor.bind-address")?.trim().orEmpty().ifBlank { "0.0.0.0" }
+        val newHost = cfg.getString("web-editor.bind-address")?.trim().orEmpty().ifBlank { "127.0.0.1" }
         val newPort = cfg.getInt("web-editor.port", 8166).coerceIn(1, 65535)
         val newToken = cfg.getString("web-editor.token")?.trim().orEmpty()
 
@@ -462,6 +462,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         val sensitive: Boolean,
         val restart: Boolean,
         val displayName: String,
+        val category: String,
         val description: String
     )
 
@@ -502,6 +503,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
                 sensitive = sensitiveKeys.contains(key),
                 restart = restartKeys.contains(key),
                 displayName = plugin.configManager.displayNameForKey(key),
+                category = categoryForKey(key),
                 description = descriptions[key] ?: "No description available."
             )
         }
@@ -519,6 +521,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
             sb.append(""""sensitive":${item.sensitive},""")
             sb.append(""""restart":${item.restart},""")
             sb.append(""""displayName":"${jsonEscape(item.displayName)}",""")
+            sb.append(""""category":"${jsonEscape(item.category)}",""")
             sb.append(""""description":"${jsonEscape(item.description)}"""")
             sb.append("}")
         }
@@ -644,6 +647,21 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         if (config.isConfigurationSection(key)) return false
         if (config.contains(key)) return true
         return config.defaults?.contains(key) == true
+    }
+
+    private fun categoryForKey(key: String): String {
+        return when {
+            key == "locale" || key == "fallback-locale" -> "Core"
+            key == "bot-token" || key == "discord-invite" || key == "alerts-channel-id" -> "Discord"
+            key.startsWith("discord.presence.") -> "Presence"
+            key.startsWith("discord.") -> "Discord"
+            key.startsWith("ban-sync.") -> "Ban Sync"
+            key == "code-length" || key == "code-expiration-seconds" || key == "device-approval-seconds" -> "Verification"
+            key.startsWith("device-id.") -> "Device ID"
+            key.startsWith("chat-bridge.") -> "Chat Bridge"
+            key.startsWith("web-editor.") -> "Web Editor"
+            else -> "Other"
+        }
     }
 
     private fun authenticate(exchange: HttpExchange): AuthResult? {
@@ -1055,6 +1073,13 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       color: var(--muted);
       font-size: 12px;
     }
+    .category-row td {
+      background: #15181d;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
     @media (max-width: 900px) {
       th:nth-child(2), td:nth-child(2) { display: none; }
       header, main { padding: 18px; }
@@ -1080,7 +1105,10 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
           <option value="en">English</option>
           <option value="ar">Arabic</option>
         </select>
-        <input id="search" type="search" placeholder="Filter keys">
+        <select id="categoryFilter" title="Category">
+          <option value="all">All categories</option>
+        </select>
+        <input id="search" type="search" placeholder="Filter settings">
         <button id="reload" class="secondary">Reload</button>
         <button id="logout" class="secondary">Logout</button>
       </div>
@@ -1123,6 +1151,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     const logoutBtn = document.getElementById('logout');
     const searchInput = document.getElementById('search');
     const langSelect = document.getElementById('langSelect');
+    const categoryFilter = document.getElementById('categoryFilter');
     const statusEl = document.getElementById('status');
     const rowsEl = document.getElementById('rows');
     const linkSearch = document.getElementById('linkSearch');
@@ -1136,6 +1165,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     let authMode = 'none';
     let linksLoaded = false;
     let linkSearchTimer = null;
+    const categoryOrder = ['Core', 'Discord', 'Presence', 'Verification', 'Device ID', 'Ban Sync', 'Chat Bridge', 'Web Editor', 'Other'];
 
     const storedToken = localStorage.getItem('dis2fa_token') || '';
     tokenInput.value = storedToken;
@@ -1189,6 +1219,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
             throw new Error(data.error || 'Failed to load');
           }
           cachedItems = data.items || [];
+          syncCategoryOptions();
           renderRows();
           syncLanguageSelect();
           setStatus('Loaded ' + cachedItems.length + ' keys.');
@@ -1329,12 +1360,40 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
 
     function renderRows() {
       const filter = searchInput.value.trim().toLowerCase();
+      const selectedCategory = categoryFilter ? categoryFilter.value : 'all';
       rowsEl.innerHTML = '';
       let rowIndex = 0;
-      cachedItems.forEach(item => {
+      const items = cachedItems.filter(item => {
         const haystack = (item.displayName + ' ' + (item.description || '')).toLowerCase();
         if (filter && haystack.indexOf(filter) === -1) {
-          return;
+          return false;
+        }
+        if (selectedCategory !== 'all' && item.category !== selectedCategory) {
+          return false;
+        }
+        return true;
+      });
+
+      const sorted = items.slice().sort((a, b) => {
+        const aIdx = categoryOrder.indexOf(a.category || 'Other');
+        const bIdx = categoryOrder.indexOf(b.category || 'Other');
+        if (aIdx !== bIdx) return aIdx - bIdx;
+        const aName = (a.displayName || a.key).toLowerCase();
+        const bName = (b.displayName || b.key).toLowerCase();
+        return aName.localeCompare(bName);
+      });
+
+      let currentCategory = null;
+      sorted.forEach(item => {
+        if (currentCategory !== item.category) {
+          currentCategory = item.category;
+          const trHead = document.createElement('tr');
+          trHead.className = 'category-row';
+          const td = document.createElement('td');
+          td.colSpan = 3;
+          td.textContent = currentCategory || 'Other';
+          trHead.appendChild(td);
+          rowsEl.appendChild(trHead);
         }
         const tr = document.createElement('tr');
         tr.className = 'fade-in';
@@ -1414,6 +1473,41 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         tr.appendChild(actionTd);
         rowsEl.appendChild(tr);
       });
+    }
+
+    function syncCategoryOptions() {
+      if (!categoryFilter) return;
+      const current = categoryFilter.value || 'all';
+      const set = new Set();
+      cachedItems.forEach(item => {
+        const cat = item.category || 'Other';
+        set.add(cat);
+      });
+      const ordered = [];
+      categoryOrder.forEach(cat => {
+        if (set.has(cat)) {
+          ordered.push(cat);
+          set.delete(cat);
+        }
+      });
+      Array.from(set).sort().forEach(cat => ordered.push(cat));
+
+      categoryFilter.innerHTML = '';
+      const allOpt = document.createElement('option');
+      allOpt.value = 'all';
+      allOpt.textContent = 'All categories';
+      categoryFilter.appendChild(allOpt);
+      ordered.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        categoryFilter.appendChild(opt);
+      });
+      if (current !== 'all' && ordered.indexOf(current) === -1) {
+        categoryFilter.value = 'all';
+      } else {
+        categoryFilter.value = current;
+      }
     }
 
     function syncLanguageSelect() {
@@ -1511,6 +1605,9 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       langSelect.addEventListener('change', () => setConfigKey('locale', langSelect.value));
     }
     searchInput.addEventListener('input', renderRows);
+    if (categoryFilter) {
+      categoryFilter.addEventListener('change', renderRows);
+    }
     linkSearch.addEventListener('input', () => {
       if (linkSearchTimer) {
         clearTimeout(linkSearchTimer);

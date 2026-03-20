@@ -97,7 +97,7 @@ web-editor:
   # Enable the web editor
   enabled: true
   # Bind address (use 127.0.0.1 for local-only access)
-  bind-address: "0.0.0.0"
+  bind-address: "127.0.0.1"
   # Port to serve the editor on
   port: 8166
   # Access token (auto-generated if empty). Keep this private.
