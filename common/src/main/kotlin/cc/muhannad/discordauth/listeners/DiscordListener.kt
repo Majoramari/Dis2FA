@@ -36,7 +36,11 @@ import cc.muhannad.discordauth.utils.AvatarLinkImage
 class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
     private val linkButtonId = "da:linkbutton"
     private val linkModalPrefix = "da:linkmodal"
-    private val sensitiveKeys = setOf("bot-token", "chat-bridge.webhook-url", "web-editor.token")
+    private val sensitiveKeys = setOf(
+        "bot-token",
+        "chat-bridge.webhook-url",
+        "web-editor.token"
+    )
     private val restartKeys = setOf("bot-token", "discord.guild-id", "discord.clear-global-commands")
 
     override fun onReady(event: ReadyEvent) {
@@ -709,7 +713,8 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
     private fun updateMessage(event: ButtonInteractionEvent, status: String) {
         val original = event.message.embeds.firstOrNull()
         val builder = if (original != null) EmbedBuilder(original) else EmbedBuilder()
-        builder.addField(t("discord.request-status"), "**$status** (${Instant.now()})", false)
+        val nowSeconds = Instant.now().epochSecond
+        builder.addField(t("discord.request-status"), "**$status** (<t:$nowSeconds:R>)", false)
         event.message.editMessageEmbeds(builder.build())
             .setComponents(emptyList())
             .queue()

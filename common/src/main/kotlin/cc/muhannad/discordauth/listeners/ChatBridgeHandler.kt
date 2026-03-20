@@ -185,7 +185,8 @@ class ChatBridgeHandler(private val plugin: Dis2FAPlugin) {
         for (name in names) {
             val pattern = Regex("^\\s*(💀\\s*)?${Regex.escape(name)}\\s+", RegexOption.IGNORE_CASE)
             result = pattern.replace(result) { match ->
-                match.groupValues[1].ifBlank { "" }
+                val skull = match.groupValues[1].trim()
+                if (skull.isNotEmpty()) "💀 " else ""
             }
         }
         return result.trimStart()
