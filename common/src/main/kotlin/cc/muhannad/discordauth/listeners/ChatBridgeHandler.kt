@@ -111,9 +111,10 @@ class ChatBridgeHandler(private val plugin: Dis2FAPlugin) {
             message = message.replace("{ITEM}", "their weapon")
         }
 
-        if (displayName.isNotBlank() && displayName != playerName) {
-            message = message.replace("[playerDisplayName]", displayName)
-            message = message.replace("{PLAYER_DISPLAY}", displayName)
+        val displayValue = if (displayName.isNotBlank()) displayName else playerName
+        if (displayValue.isNotBlank()) {
+            message = message.replace("[playerDisplayName]", displayValue)
+            message = message.replace("{PLAYER_DISPLAY}", displayValue)
         }
         if (playerName.isNotBlank()) {
             message = message.replace("[playerName]", playerName)
