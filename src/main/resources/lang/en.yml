@@ -1,0 +1,181 @@
+titles:
+  generic: "Dis2FA"
+  help: "Dis2FA Help"
+  status: "Server Status"
+  link: "Link"
+  unlink: "Unlink"
+  reload: "Reload"
+  randomize: "Randomize ID"
+  request: "Request"
+  device-request: "Suspicious Activity"
+
+buttons:
+  approve: "Yes, it's me"
+  deny: "No, I'm getting hacked"
+  link: "Link account"
+  link-modal-title: "Link Account"
+  link-modal-label: "Enter the code shown on your Minecraft screen"
+  link-modal-placeholder: "1234"
+
+kick-unlinked: |
+  &6════════════════════════════════
+  &9Discord&f Verification
+  &6════════════════════════════════
+
+  &eYou must link your &9Discord &eaccount to play.
+
+  &eSend this &acode &eto our &9Discord &ebot &f{BOT_NAME}&e,
+  &eor press the button in &9{LINK_CHANNEL}&e.
+
+  &fCODE: &a{CODE}
+
+  &7Discord: &9{DISCORD_INVITE}
+  &6════════════════════════════════
+
+kick-device-change: |
+  &6════════════════════════════════
+  &cSuspicious Activity
+  &6════════════════════════════════
+
+  &cSuspicious activity detected!
+  &7We noticed suspicious activity on your account.
+  &7Check &9Discord &7to approve this login.
+
+  &6════════════════════════════════
+
+unlink-kick: |
+  &6════════════════════════════════
+  &aUnlinked
+  &6════════════════════════════════
+
+  &aYour Discord link was removed.
+  &7Reconnect to link again.
+
+  &6════════════════════════════════
+
+discord-unavailable: |
+  &6════════════════════════════════
+  &cDiscord Unavailable
+  &6════════════════════════════════
+
+  &cVerification is currently unavailable.
+  &7Please try again in a moment.
+
+  &6════════════════════════════════
+
+not-in-guild: |
+  &6════════════════════════════════
+  &cDiscord Required
+  &6════════════════════════════════
+
+  &cYou must be in our &9Discord &cserver to play.
+  &7Join: &9{DISCORD_INVITE}
+
+  &6════════════════════════════════
+
+role-required: |
+  &6════════════════════════════════
+  &cRole Required
+  &6════════════════════════════════
+
+  &cYou do not have the required &9Discord &crole.
+
+  &6════════════════════════════════
+
+discord-banned: |
+  &6════════════════════════════════
+  &cDiscord Banned
+  &6════════════════════════════════
+
+  &cYou are banned on &9Discord&c.
+
+  &6════════════════════════════════
+
+joined-linked: "&9You joined automatically because your Discord account is linked to this server."
+
+discord.link-invalid: "❌ Invalid or expired code. Please rejoin the server to get a new one."
+discord.link-already-linked: "❌ This Discord account is already linked to another Minecraft account."
+discord.link-minecraft-already-linked: "❌ That Minecraft account is already linked to a different Discord account."
+
+channel-device-request: "Someone is trying to access your account, is that you?"
+
+# Discord command responses
+
+discord.use-in-server: "Use this command in a server."
+
+discord.wrong-server: "This bot is not configured for this server."
+
+discord.help-body: |
+  Commands:
+  /link <code> - Link your Minecraft account
+  /unlink - Unlink your account
+  /status - Show server stats
+  /reload - Reload config (admin)
+  /randomizeid [player] - Randomize device ID (admin)
+
+discord.code-length: "Code must be exactly {LEN} digits."
+
+discord.not-linked: "You are not linked."
+
+discord.unlinked: "Unlinked. Rejoin the server to link again."
+
+discord.no-permission: "You do not have permission."
+
+discord.reloaded: "Config reloaded."
+
+discord.randomize-not-found: "Player not found or not linked."
+
+discord.randomize-success: "Device ID randomized for **{PLAYER}**. Next join will trigger approval."
+
+discord.request-invalid: "This request is no longer valid."
+
+discord.request-expired: "This request has expired or was already handled."
+
+discord.request-not-for-you: "This request is not for you."
+
+discord.request-unknown: "Unknown action."
+
+discord.request-approved: "Approved. The player can now rejoin."
+
+discord.request-denied: "Denied. The login attempt was blocked."
+
+discord.link-request: "Someone is trying to link to **{PLAYER}**. Press the button to enter the code."
+discord.linked-image: "**Successfully linked** {MENTION} **to** **{PLAYER}**."
+
+discord.status-field-tps: "⚡ TPS"
+discord.status-field-cpu: "🧠 CPU"
+discord.status-field-ram: "💾 RAM"
+discord.status-field-players: "👥 Players"
+discord.status-field-uptime: "⏱️ Uptime"
+discord.status-na: "N/A"
+discord.request-status: "Status"
+
+cmd:
+  no-permission: "&cYou do not have permission."
+  reload-success: "&aDis2FA config reloaded."
+  usage-randomize: "&cUsage: /da randomizeid <player>"
+  no-link: "&cNo Discord link found for that player."
+  randomized: "&aDevice ID randomized. Next join will trigger approval."
+  only-players: "&cOnly players can use this command."
+  not-linked: "&cYou are not linked to Discord."
+
+  help-header: "&6═══ &fDis2FA Help&6 ═══"
+  help-help: "&e/da help&7 - Show this help"
+  help-status: "&e/da status&7 - Show plugin status"
+  help-reload: "&e/da reload&7 - Reload config"
+  help-randomize: "&e/da randomizeid [player]&7 - Randomize device ID (testing)"
+  help-unlink: "&e/unlink&7 - Unlink your Discord account"
+  help-footer: "&6═════════════════════"
+
+  status-title: "&6Dis2FA Status"
+  status-token: "&7Bot token: &f{VALUE}"
+  status-alerts: "&7Alerts channel: &f{VALUE}"
+  status-guild: "&7Guild ID: &f{VALUE}"
+  status-roles: "&7Allowed roles: &f{VALUE}"
+  status-bansync: "&7Ban sync: &f{VALUE}"
+
+  value-configured: "configured"
+  value-missing: "missing"
+  value-enabled: "enabled"
+  value-disabled: "disabled"
+  value-none: "none"

@@ -1,0 +1,181 @@
+titles:
+  generic: "Dis2FA"
+  help: "مساعدة Dis2FA"
+  status: "حالة الخادم"
+  link: "الربط"
+  unlink: "إلغاء الربط"
+  reload: "إعادة التحميل"
+  randomize: "تغيير المعرف"
+  request: "الطلب"
+  device-request: "نشاط مشبوه"
+
+buttons:
+  approve: "نعم، هذا أنا"
+  deny: "لا، يتم اختراق حسابي"
+  link: "ربط الحساب"
+  link-modal-title: "ربط الحساب"
+  link-modal-label: "أدخل الكود الظاهر على شاشة ماينكرافت"
+  link-modal-placeholder: "1234"
+
+kick-unlinked: |
+  &6═════════════════════════
+  &9ديسكورد&f تحقق
+  &6═════════════════════════
+
+  &eيجب ربط حساب &9ديسكورد &eللعب.
+
+  &eأرسل هذا &aالكود &eإلى بوت &9ديسكورد &f{BOT_NAME}&e،
+  &eأو اضغط الزر في &9{LINK_CHANNEL}&e.
+
+  &fالكود: &a{CODE}
+
+  &7ديسكورد: &9{DISCORD_INVITE}
+  &6═════════════════════════
+
+kick-device-change: |
+  &6═════════════════════════
+  &cنشاط مشبوه
+  &6═════════════════════════
+
+  &cتم رصد نشاط مشبوه!
+  &7لاحظنا محاولة دخول غير مألوفة على حسابك.
+  &7تحقق من &9ديسكورد &7للموافقة على هذا الدخول.
+
+  &6═════════════════════════
+
+unlink-kick: |
+  &6═════════════════════════
+  &aتم إلغاء الربط
+  &6═════════════════════════
+
+  &aتم إلغاء ربط حساب ديسكورد.
+  &7أعد الاتصال لإعادة الربط.
+
+  &6═════════════════════════
+
+discord-unavailable: |
+  &6═════════════════════════
+  &cديسكورد غير متاح
+  &6═════════════════════════
+
+  &cخدمة التحقق غير متاحة حاليًا.
+  &7حاول مرة أخرى لاحقًا.
+
+  &6═════════════════════════
+
+not-in-guild: |
+  &6═════════════════════════
+  &cديسكورد مطلوب
+  &6═════════════════════════
+
+  &cيجب أن تكون عضوًا في خادم &9ديسكورد &cللعب.
+  &7انضم: &9{DISCORD_INVITE}
+
+  &6═════════════════════════
+
+role-required: |
+  &6═════════════════════════
+  &cالرتبة مطلوبة
+  &6═════════════════════════
+
+  &cلا تملك رتبة ديسكورد المطلوبة.
+
+  &6═════════════════════════
+
+discord-banned: |
+  &6═════════════════════════
+  &cمحظور في ديسكورد
+  &6═════════════════════════
+
+  &cأنت محظور في &9ديسكورد&c.
+
+  &6═════════════════════════
+
+joined-linked: "&9تم السماح بدخولك تلقائيًا لأن حساب ديسكورد مرتبط بهذا الخادم."
+
+discord.link-invalid: "❌ الكود غير صالح أو منتهي. أعد الدخول للحصول على كود جديد."
+discord.link-already-linked: "❌ هذا الحساب مرتبط بالفعل بحساب ماينكرافت آخر."
+discord.link-minecraft-already-linked: "❌ حساب ماينكرافت هذا مرتبط بحساب ديسكورد مختلف."
+
+channel-device-request: "هناك محاولة للوصول إلى حسابك. هل هذا أنت؟"
+
+# Discord command responses
+
+discord.use-in-server: "استخدم هذا الأمر داخل الخادم."
+
+discord.wrong-server: "هذا البوت غير مهيأ لهذا الخادم."
+
+discord.help-body: |
+  الأوامر:
+  /link <code> - ربط حساب ماينكرافت
+  /unlink - إلغاء ربط الحساب
+  /status - عرض حالة الخادم
+  /reload - إعادة تحميل الإعدادات (إدارة)
+  /randomizeid [player] - تغيير معرف الجهاز (إدارة)
+
+discord.code-length: "يجب أن يكون الكود مكوّنًا من {LEN} أرقام بالضبط."
+
+discord.not-linked: "أنت غير مرتبط."
+
+discord.unlinked: "تم إلغاء الربط. أعد الدخول للربط من جديد."
+
+discord.no-permission: "ليست لديك صلاحية."
+
+discord.reloaded: "تمت إعادة تحميل الإعدادات."
+
+discord.randomize-not-found: "اللاعب غير موجود أو غير مرتبط."
+
+discord.randomize-success: "تم تغيير معرف الجهاز لـ **{PLAYER}**. المحاولة التالية ستتطلب موافقة."
+
+discord.request-invalid: "هذا الطلب لم يعد صالحًا."
+
+discord.request-expired: "انتهت صلاحية هذا الطلب أو تمت معالجته."
+
+discord.request-not-for-you: "هذا الطلب غير موجه لك."
+
+discord.request-unknown: "إجراء غير معروف."
+
+discord.request-approved: "تمت الموافقة. يمكن للاعب إعادة الدخول الآن."
+
+discord.request-denied: "تم الرفض. تم حظر محاولة الدخول."
+
+discord.link-request: "هناك محاولة لربط الحساب باللاعب **{PLAYER}**. اضغط الزر لإدخال الكود."
+discord.linked-image: "**تم الربط بنجاح** {MENTION} **بـ** **{PLAYER}**."
+
+discord.status-field-tps: "⚡ TPS"
+discord.status-field-cpu: "🧠 المعالج"
+discord.status-field-ram: "💾 الذاكرة"
+discord.status-field-players: "👥 اللاعبون"
+discord.status-field-uptime: "⏱️ مدة التشغيل"
+discord.status-na: "غير متاح"
+discord.request-status: "الحالة"
+
+cmd:
+  no-permission: "&cليس لديك صلاحية."
+  reload-success: "&aتمت إعادة تحميل إعدادات Dis2FA."
+  usage-randomize: "&cالصيغة: /da randomizeid <player>"
+  no-link: "&cلا يوجد ربط ديسكورد لهذا اللاعب."
+  randomized: "&aتم تغيير معرف الجهاز. المحاولة التالية ستتطلب الموافقة."
+  only-players: "&cهذا الأمر للاعبين فقط."
+  not-linked: "&cأنت غير مرتبط بديسكورد."
+
+  help-header: "&6═══ &fمساعدة Dis2FA&6 ═══"
+  help-help: "&e/da help&7 - عرض هذه المساعدة"
+  help-status: "&e/da status&7 - عرض حالة الإضافة"
+  help-reload: "&e/da reload&7 - إعادة تحميل الإعدادات"
+  help-randomize: "&e/da randomizeid [player]&7 - تغيير معرف الجهاز (للاختبار)"
+  help-unlink: "&e/unlink&7 - إلغاء ربط حساب ديسكورد"
+  help-footer: "&6═════════════════════"
+
+  status-title: "&6حالة Dis2FA"
+  status-token: "&7حالة التوكن: &f{VALUE}"
+  status-alerts: "&7قناة التنبيهات: &f{VALUE}"
+  status-guild: "&7معرف الخادم: &f{VALUE}"
+  status-roles: "&7الرتب المسموحة: &f{VALUE}"
+  status-bansync: "&7مزامنة الحظر: &f{VALUE}"
+
+  value-configured: "مُعد"
+  value-missing: "غير موجود"
+  value-enabled: "مُفعّل"
+  value-disabled: "غير مُفعّل"
+  value-none: "لا يوجد"
