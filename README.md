@@ -11,7 +11,7 @@ Discord account to their Minecraft account, and device changes require Discord a
 - Optional Discord-to-Minecraft ban sync
 - Discord chat bridge (Discord <-> Minecraft)
 - Built-in Discord bot (JDA), no DiscordSRV dependency
-- Optional web config editor
+- Web config editor with magic link login (`/da web`)
 - SQLite storage for links and device requests
 
 ## Compatibility
@@ -47,4 +47,4 @@ Artifacts:
 
 ## More Documentation
 
-See `docs/index.md` for the full VitePress documentation.
+See `docs/index.md` for the full VitePress documentation (web editor, linked players, configuration details).

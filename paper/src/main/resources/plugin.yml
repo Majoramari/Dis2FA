@@ -15,7 +15,7 @@ commands:
   discordauth:
     description: Main Dis2FA command
     aliases: [da]
-    usage: /<command> [help|status|reload]
+    usage: /<command> [help|status|reload|randomizeid|web]
   unlink:
     description: Unlink your Discord account
     usage: /<command>
@@ -25,5 +25,5 @@ permissions:
     description: Allows use of Dis2FA features
     default: true
   discordauth.admin:
-    description: Allows admin commands like reload
+    description: Allows admin commands like reload, randomizeid, web
     default: op

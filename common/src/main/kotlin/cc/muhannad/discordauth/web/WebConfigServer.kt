@@ -7,6 +7,9 @@ import org.bukkit.Bukkit
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.security.SecureRandom
+import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -15,20 +18,84 @@ import java.util.concurrent.atomic.AtomicReference
 
 class WebConfigServer(private val plugin: Dis2FAPlugin) {
 
+    private val random = SecureRandom()
+    private val magicLinkTtlMs = 5 * 60 * 1000L
+
     private var server: HttpServer? = null
     private var executor: ExecutorService? = null
     private var host: String = ""
     private var port: Int = 0
     private var token: String = ""
 
-    private val sensitiveKeys = setOf("bot-token", "chat-bridge.webhook-url", "web-editor.token")
+    private val sensitiveKeys = setOf(
+        "bot-token",
+        "chat-bridge.webhook-url",
+        "web-editor.token"
+    )
     private val restartKeys = setOf("bot-token", "discord.guild-id", "discord.clear-global-commands")
+    private val descriptions = mapOf(
+        "locale" to "Language file to use for messages (en or ar).",
+        "fallback-locale" to "Fallback language if a key is missing.",
+        "bot-token" to "Discord bot token used to connect to the API.",
+        "discord-invite" to "Invite link shown in kick messages.",
+        "alerts-channel-id" to "Channel ID for device approval requests.",
+        "discord.guild-id" to "Discord server (guild) ID for faster command registration.",
+        "discord.clear-global-commands" to "Clear global Discord commands on startup.",
+        "discord.bot-name" to "Override bot name shown in Minecraft messages.",
+        "discord.link-channel-name" to "Override link channel name shown in messages.",
+        "discord.allowed-role-ids" to "Allow only members with these role IDs (empty allows all).",
+        "discord.require-member" to "Require the player to be in the Discord server.",
+        "discord.member-check-timeout-seconds" to "Timeout (seconds) for Discord member lookups.",
+        "discord.allow-guild-link" to "Allow linking by sending codes in a guild channel.",
+        "discord.link-channel-id" to "Channel where link buttons and codes are accepted.",
+        "discord.presence.status" to "Bot status (online, idle, dnd, invisible).",
+        "discord.presence.activity.type" to "Bot activity type (playing, listening, watching, competing, custom).",
+        "discord.presence.activity.text" to "Bot activity text, or 'off' to disable.",
+        "discord.presence.update-seconds" to "How often to refresh presence placeholders.",
+        "ban-sync.enabled" to "Check Discord bans on join.",
+        "ban-sync.apply-minecraft-ban" to "Also ban the player in Minecraft if banned on Discord.",
+        "ban-sync.ban-reason" to "Reason used for the Minecraft ban.",
+        "code-length" to "Verification code length (4-8 digits).",
+        "code-expiration-seconds" to "How long link codes remain valid.",
+        "device-approval-seconds" to "How long device approvals remain valid.",
+        "device-id.salt" to "Salt used to hash UUID+IP for device IDs.",
+        "device-id.ip-prefix-v4" to "IPv4 prefix length used for device ID.",
+        "device-id.ip-prefix-v6" to "IPv6 prefix length used for device ID.",
+        "chat-bridge.enabled" to "Enable Discord <-> Minecraft chat bridge.",
+        "chat-bridge.discord-channel-id" to "Discord channel ID to read messages from.",
+        "chat-bridge.webhook-url" to "Webhook URL for sending Minecraft chat to Discord.",
+        "chat-bridge.webhook-username-format" to "Webhook username template. Supports {PLAYER}.",
+        "chat-bridge.avatar-url" to "Webhook avatar URL template. Supports {PLAYER}.",
+        "chat-bridge.minecraft-format" to "Format for Discord -> Minecraft messages.",
+        "chat-bridge.discord-format" to "Format for Minecraft -> Discord messages.",
+        "chat-bridge.bridge-joins" to "Bridge join messages.",
+        "chat-bridge.bridge-quits" to "Bridge quit messages.",
+        "chat-bridge.bridge-deaths" to "Bridge death messages.",
+        "chat-bridge.bridge-advancements" to "Bridge advancement messages.",
+        "chat-bridge.join-format" to "Join message template.",
+        "chat-bridge.quit-format" to "Quit message template.",
+        "chat-bridge.death-format" to "Death message template.",
+        "chat-bridge.advancement-format" to "Advancement message template.",
+        "web-editor.enabled" to "Enable the web config editor.",
+        "web-editor.bind-address" to "Address the web editor binds to.",
+        "web-editor.port" to "Port for the web editor.",
+        "web-editor.token" to "Token for web editor API access."
+    )
+    private val sessions = ConcurrentHashMap<String, Session>()
+    private val magicLinks = ConcurrentHashMap<String, Long>()
+
+    private data class Session(val label: String, val expiresAt: Long)
+
+    private sealed class AuthResult {
+        object Token : AuthResult()
+        object Session : AuthResult()
+    }
 
     @Synchronized
     fun startFromConfig() {
         val cfg = plugin.config
         val enabled = cfg.getBoolean("web-editor.enabled", false)
-        val newHost = cfg.getString("web-editor.bind-address")?.trim().orEmpty().ifBlank { "127.0.0.1" }
+        val newHost = cfg.getString("web-editor.bind-address")?.trim().orEmpty().ifBlank { "0.0.0.0" }
         val newPort = cfg.getInt("web-editor.port", 8166).coerceIn(1, 65535)
         val newToken = cfg.getString("web-editor.token")?.trim().orEmpty()
 
@@ -38,12 +105,15 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         }
 
         if (newToken.isBlank()) {
-            logWarn("Web config editor token is blank. Server not started.")
-            stop()
-            return
+            logWarn("Web config editor token is blank. Use /da web to generate a magic link.")
         }
 
-        if (server != null && newHost == host && newPort == port) {
+        if (
+            server != null &&
+            newHost == host &&
+            newPort == port &&
+            newToken == token
+        ) {
             token = newToken
             return
         }
@@ -56,6 +126,12 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
             http.createContext("/api/config") { exchange -> handleConfig(exchange) }
             http.createContext("/api/config/set") { exchange -> handleConfigSet(exchange) }
             http.createContext("/api/config/reset") { exchange -> handleConfigReset(exchange) }
+            http.createContext("/api/me") { exchange -> handleMe(exchange) }
+            http.createContext("/api/links") { exchange -> handleLinks(exchange) }
+            http.createContext("/api/links/unlink") { exchange -> handleLinksUnlink(exchange) }
+            http.createContext("/api/links/randomize") { exchange -> handleLinksRandomize(exchange) }
+            http.createContext("/login") { exchange -> handleMagicLogin(exchange) }
+            http.createContext("/logout") { exchange -> handleLogout(exchange) }
             val exec = Executors.newCachedThreadPool { runnable ->
                 Thread(runnable, "Dis2FA-WebConfig")
             }
@@ -76,6 +152,16 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     @Synchronized
     fun reloadFromConfig() {
         startFromConfig()
+    }
+
+    @Synchronized
+    fun createMagicLink(hostOverride: String?): String? {
+        if (server == null) return null
+
+        val baseUrl = resolveBaseUrl(hostOverride) ?: return null
+        val code = generateToken(18)
+        magicLinks[code] = System.currentTimeMillis() + magicLinkTtlMs
+        return "${baseUrl}/login?code=$code"
     }
 
     @Synchronized
@@ -105,7 +191,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     }
 
     private fun handleConfig(exchange: HttpExchange) {
-        if (!authorize(exchange)) {
+        if (authenticate(exchange) == null) {
             sendJson(exchange, 401, """{"ok":false,"error":"unauthorized"}""")
             return
         }
@@ -129,7 +215,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     }
 
     private fun handleConfigSet(exchange: HttpExchange) {
-        if (!authorize(exchange)) {
+        if (authenticate(exchange) == null) {
             sendJson(exchange, 401, """{"ok":false,"error":"unauthorized"}""")
             return
         }
@@ -172,7 +258,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     }
 
     private fun handleConfigReset(exchange: HttpExchange) {
-        if (!authorize(exchange)) {
+        if (authenticate(exchange) == null) {
             sendJson(exchange, 401, """{"ok":false,"error":"unauthorized"}""")
             return
         }
@@ -213,12 +299,177 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         }
     }
 
+    private fun handleMe(exchange: HttpExchange) {
+        val auth = authenticate(exchange)
+        if (auth == null) {
+            sendJson(exchange, 401, """{"ok":false,"error":"unauthorized"}""")
+            return
+        }
+        if (exchange.requestMethod != "GET") {
+            sendJson(exchange, 405, """{"ok":false,"error":"method_not_allowed"}""")
+            return
+        }
+        val payload = when (auth) {
+            is AuthResult.Token -> """{"ok":true,"auth":"token"}"""
+            is AuthResult.Session -> """{"ok":true,"auth":"session"}"""
+        }
+        sendJson(exchange, 200, payload)
+    }
+
+    private fun handleMagicLogin(exchange: HttpExchange) {
+        if (exchange.requestMethod != "GET") {
+            send(exchange, 405, "text/plain; charset=utf-8", "Method Not Allowed")
+            return
+        }
+
+        val query = parseQuery(exchange.requestURI.rawQuery)
+        val code = query["code"].orEmpty()
+        if (code.isBlank()) {
+            send(exchange, 400, "text/plain; charset=utf-8", "Missing login code.")
+            return
+        }
+
+        val expiry = magicLinks.remove(code)
+        if (expiry == null || expiry < System.currentTimeMillis()) {
+            send(exchange, 400, "text/plain; charset=utf-8", "Login code expired.")
+            return
+        }
+
+        val sessionId = generateToken(24)
+        sessions[sessionId] = Session("magic", System.currentTimeMillis() + 12 * 60 * 60 * 1000)
+        exchange.responseHeaders.add(
+            "Set-Cookie",
+            "dis2fa_session=$sessionId; Path=/; HttpOnly; SameSite=Lax"
+        )
+        redirect(exchange, "/")
+    }
+
+    private fun handleLinks(exchange: HttpExchange) {
+        if (authenticate(exchange) == null) {
+            sendJson(exchange, 401, """{"ok":false,"error":"unauthorized"}""")
+            return
+        }
+        if (exchange.requestMethod != "GET") {
+            sendJson(exchange, 405, """{"ok":false,"error":"method_not_allowed"}""")
+            return
+        }
+
+        val query = parseQuery(exchange.requestURI.rawQuery)
+        val term = query["q"].orEmpty()
+        val limit = query["limit"]?.toIntOrNull() ?: 50
+        val links = plugin.database.searchLinks(term, limit.coerceIn(1, 100))
+
+        val items = links.map { link ->
+            LinkItem(
+                uuid = link.uuid.toString(),
+                playerName = link.playerName,
+                discordId = link.discordId,
+                deviceId = link.deviceId,
+                lastIp = link.lastIp,
+                linkedAt = link.linkedAt,
+                lastSeen = link.lastSeen
+            )
+        }
+
+        sendJson(exchange, 200, buildLinksJson(items))
+    }
+
+    private fun handleLinksUnlink(exchange: HttpExchange) {
+        if (authenticate(exchange) == null) {
+            sendJson(exchange, 401, """{"ok":false,"error":"unauthorized"}""")
+            return
+        }
+        if (exchange.requestMethod != "POST") {
+            sendJson(exchange, 405, """{"ok":false,"error":"method_not_allowed"}""")
+            return
+        }
+
+        val form = parseForm(readBody(exchange))
+        val uuidRaw = form["uuid"].orEmpty().trim()
+        val discordId = form["discordId"].orEmpty().trim()
+        if (uuidRaw.isBlank() && discordId.isBlank()) {
+            sendJson(exchange, 400, """{"ok":false,"error":"missing_identifier"}""")
+            return
+        }
+
+        val link = when {
+            uuidRaw.isNotBlank() -> runCatching { java.util.UUID.fromString(uuidRaw) }
+                .getOrNull()
+                ?.let { plugin.database.getLink(it) }
+            discordId.isNotBlank() -> plugin.database.getLinkByDiscordId(discordId)
+            else -> null
+        }
+
+        if (link == null) {
+            sendJson(exchange, 404, """{"ok":false,"error":"not_found"}""")
+            return
+        }
+
+        plugin.database.unlink(link.uuid)
+        sendJson(exchange, 200, """{"ok":true}""")
+    }
+
+    private fun handleLinksRandomize(exchange: HttpExchange) {
+        if (authenticate(exchange) == null) {
+            sendJson(exchange, 401, """{"ok":false,"error":"unauthorized"}""")
+            return
+        }
+        if (exchange.requestMethod != "POST") {
+            sendJson(exchange, 405, """{"ok":false,"error":"method_not_allowed"}""")
+            return
+        }
+
+        val form = parseForm(readBody(exchange))
+        val uuidRaw = form["uuid"].orEmpty().trim()
+        if (uuidRaw.isBlank()) {
+            sendJson(exchange, 400, """{"ok":false,"error":"missing_uuid"}""")
+            return
+        }
+        val uuid = runCatching { java.util.UUID.fromString(uuidRaw) }.getOrNull()
+        if (uuid == null) {
+            sendJson(exchange, 400, """{"ok":false,"error":"invalid_uuid"}""")
+            return
+        }
+        val link = plugin.database.getLink(uuid)
+        if (link == null) {
+            sendJson(exchange, 404, """{"ok":false,"error":"not_found"}""")
+            return
+        }
+
+        val newDeviceId = java.util.UUID.randomUUID().toString().replace("-", "")
+        plugin.database.updateDeviceIdOnly(uuid, newDeviceId, System.currentTimeMillis())
+        sendJson(exchange, 200, """{"ok":true,"deviceId":"${jsonEscape(newDeviceId)}"}""")
+    }
+
+    private fun handleLogout(exchange: HttpExchange) {
+        val sessionId = parseCookie(exchange, "dis2fa_session")
+        if (sessionId != null) {
+            sessions.remove(sessionId)
+        }
+        exchange.responseHeaders.add(
+            "Set-Cookie",
+            "dis2fa_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+        )
+        redirect(exchange, "/")
+    }
+
     private data class ConfigItem(
         val key: String,
         val type: String,
         val value: String,
         val sensitive: Boolean,
-        val restart: Boolean
+        val restart: Boolean,
+        val description: String
+    )
+
+    private data class LinkItem(
+        val uuid: String,
+        val playerName: String,
+        val discordId: String,
+        val deviceId: String?,
+        val lastIp: String?,
+        val linkedAt: Long,
+        val lastSeen: Long
     )
 
     private sealed class ConfigChangeResult {
@@ -246,7 +497,8 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
                 type = type,
                 value = displayValue,
                 sensitive = sensitiveKeys.contains(key),
-                restart = restartKeys.contains(key)
+                restart = restartKeys.contains(key),
+                description = descriptions[key] ?: "No description available."
             )
         }
     }
@@ -261,7 +513,27 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
             sb.append(""""type":"${jsonEscape(item.type)}",""")
             sb.append(""""value":"${jsonEscape(item.value)}",""")
             sb.append(""""sensitive":${item.sensitive},""")
-            sb.append(""""restart":${item.restart}""")
+            sb.append(""""restart":${item.restart},""")
+            sb.append(""""description":"${jsonEscape(item.description)}"""")
+            sb.append("}")
+        }
+        sb.append("]}")
+        return sb.toString()
+    }
+
+    private fun buildLinksJson(items: List<LinkItem>): String {
+        val sb = StringBuilder()
+        sb.append("""{"ok":true,"items":[""")
+        items.forEachIndexed { index, item ->
+            if (index > 0) sb.append(",")
+            sb.append("{")
+            sb.append(""""uuid":"${jsonEscape(item.uuid)}",""")
+            sb.append(""""playerName":"${jsonEscape(item.playerName)}",""")
+            sb.append(""""discordId":"${jsonEscape(item.discordId)}",""")
+            sb.append(""""deviceId":"${jsonEscape(item.deviceId ?: "")}",""")
+            sb.append(""""lastIp":"${jsonEscape(item.lastIp ?: "")}",""")
+            sb.append(""""linkedAt":${item.linkedAt},""")
+            sb.append(""""lastSeen":${item.lastSeen}""")
             sb.append("}")
         }
         sb.append("]}")
@@ -369,22 +641,85 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         return config.defaults?.contains(key) == true
     }
 
-    private fun authorize(exchange: HttpExchange): Boolean {
+    private fun authenticate(exchange: HttpExchange): AuthResult? {
+        cleanupSessions()
+
+        val sessionId = parseCookie(exchange, "dis2fa_session")
+        if (!sessionId.isNullOrBlank()) {
+            val session = sessions[sessionId]
+            if (session != null && session.expiresAt > System.currentTimeMillis()) {
+                return AuthResult.Session
+            }
+        }
+
         val expected = token
-        if (expected.isBlank()) return false
+        if (expected.isBlank()) return null
 
         val auth = exchange.requestHeaders.getFirst("Authorization")
         if (auth != null && auth.startsWith("Bearer ")) {
-            if (auth.removePrefix("Bearer ").trim() == expected) return true
+            if (auth.removePrefix("Bearer ").trim() == expected) return AuthResult.Token
         }
 
         val headerToken = exchange.requestHeaders.getFirst("X-Dis2FA-Token")
-        if (headerToken == expected) return true
+        if (headerToken == expected) return AuthResult.Token
 
         val queryToken = parseQuery(exchange.requestURI.rawQuery)["token"]
-        if (queryToken == expected) return true
+        if (queryToken == expected) return AuthResult.Token
 
-        return false
+        return null
+    }
+
+    private fun cleanupSessions() {
+        val now = System.currentTimeMillis()
+        sessions.entries.removeIf { it.value.expiresAt <= now }
+        magicLinks.entries.removeIf { it.value <= now }
+    }
+
+    private fun parseCookie(exchange: HttpExchange, name: String): String? {
+        val cookieHeader = exchange.requestHeaders.getFirst("Cookie") ?: return null
+        val parts = cookieHeader.split(";")
+        for (part in parts) {
+            val trimmed = part.trim()
+            if (trimmed.startsWith("$name=")) {
+                return trimmed.substring(name.length + 1)
+            }
+        }
+        return null
+    }
+
+    private fun generateToken(bytes: Int): String {
+        val buffer = ByteArray(bytes)
+        random.nextBytes(buffer)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buffer)
+    }
+
+    private fun resolveBaseUrl(hostOverride: String?): String? {
+        val override = hostOverride?.trim().orEmpty()
+        if (override.isNotBlank()) {
+            if (override.startsWith("http://") || override.startsWith("https://")) {
+                return override.trimEnd('/')
+            }
+            return if (override.contains(":")) {
+                "http://$override"
+            } else {
+                "http://$override:$port"
+            }
+        }
+
+        val bind = host.trim().ifBlank { "127.0.0.1" }
+        val resolved = if (bind == "0.0.0.0" || bind == "::") {
+            val serverIp = plugin.server.ip?.trim().orEmpty()
+            if (serverIp.isNotBlank()) serverIp else "localhost"
+        } else {
+            bind
+        }
+        return "http://$resolved:$port"
+    }
+
+    private fun redirect(exchange: HttpExchange, location: String) {
+        exchange.responseHeaders.set("Location", location)
+        exchange.sendResponseHeaders(302, -1)
+        exchange.responseBody.close()
     }
 
     private fun parseQuery(rawQuery: String?): Map<String, String> {
@@ -548,6 +883,27 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       align-items: center;
       margin-bottom: 16px;
     }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      background: #f3ede2;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: transparent;
+    }
+    .panel.hidden {
+      display: none;
+    }
     .controls input, .controls button, .controls select {
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -650,33 +1006,76 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     <p>Edit config.yml from the browser. Sensitive values stay hidden unless updated.</p>
   </header>
   <main>
-    <div class="controls">
-      <input id="token" type="password" placeholder="Web editor token">
-      <button id="connect">Connect</button>
-      <input id="search" type="search" placeholder="Filter keys">
-      <button id="reload" class="secondary">Reload</button>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="settings">Settings</button>
+      <button class="tab-btn" data-tab="links">Linked Players</button>
     </div>
-    <div id="status" class="status">Not connected.</div>
-    <table>
-      <thead>
-        <tr>
-          <th>Key</th>
-          <th>Type</th>
-          <th>Value</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
+
+    <section id="settingsPanel" class="panel">
+      <div class="controls">
+        <input id="token" type="password" placeholder="Web editor token">
+        <button id="connect">Connect</button>
+        <select id="langSelect" title="Language">
+          <option value="en">English</option>
+          <option value="ar">Arabic</option>
+        </select>
+        <input id="search" type="search" placeholder="Filter keys">
+        <button id="reload" class="secondary">Reload</button>
+        <button id="logout" class="secondary">Logout</button>
+      </div>
+      <div id="status" class="status">Not connected.</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Key</th>
+            <th>Type</th>
+            <th>Value</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </section>
+
+    <section id="linksPanel" class="panel hidden">
+      <div class="controls">
+        <input id="linkSearch" type="search" placeholder="Search players or Discord IDs">
+        <button id="loadLinks">Load Links</button>
+      </div>
+      <div id="linkStatus" class="status">No data loaded.</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Discord ID</th>
+            <th>UUID</th>
+            <th>Last Seen</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="linkRows"></tbody>
+      </table>
+    </section>
   </main>
   <script>
     const tokenInput = document.getElementById('token');
     const connectBtn = document.getElementById('connect');
     const reloadBtn = document.getElementById('reload');
+    const logoutBtn = document.getElementById('logout');
     const searchInput = document.getElementById('search');
+    const langSelect = document.getElementById('langSelect');
     const statusEl = document.getElementById('status');
     const rowsEl = document.getElementById('rows');
+    const linkSearch = document.getElementById('linkSearch');
+    const loadLinksBtn = document.getElementById('loadLinks');
+    const linkStatusEl = document.getElementById('linkStatus');
+    const linkRowsEl = document.getElementById('linkRows');
+    const tabs = document.querySelectorAll('.tab-btn');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const linksPanel = document.getElementById('linksPanel');
     let cachedItems = [];
+    let cachedLinks = [];
+    let authMode = 'none';
 
     const storedToken = localStorage.getItem('dis2fa_token') || '';
     tokenInput.value = storedToken;
@@ -686,23 +1085,42 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       statusEl.style.color = isError ? '#c0392b' : '#6b6b6b';
     }
 
+    function setLinkStatus(text, isError) {
+      linkStatusEl.textContent = text;
+      linkStatusEl.style.color = isError ? '#c0392b' : '#6b6b6b';
+    }
+
     function authHeaders() {
       const token = tokenInput.value.trim();
-      return { 'X-Dis2FA-Token': token };
+      return token ? { 'X-Dis2FA-Token': token } : {};
     }
 
     function saveToken() {
       const token = tokenInput.value.trim();
-      if (token.length === 0) {
-        setStatus('Token required.', true);
-        return false;
+      if (token.length > 0) {
+        localStorage.setItem('dis2fa_token', token);
       }
-      localStorage.setItem('dis2fa_token', token);
       return true;
     }
 
+    function refreshAuth() {
+      fetch('/api/me', { headers: authHeaders() })
+        .then(r => r.json())
+        .then(data => {
+          if (!data.ok) {
+            throw new Error('unauthorized');
+          }
+          authMode = data.auth || 'token';
+          setStatus(authMode === 'session' ? 'Magic link session active.' : 'Token auth ready.', false);
+        })
+        .catch(() => {
+          authMode = 'none';
+          setStatus('Not authenticated. Use token or /da web link.', true);
+        });
+    }
+
     function loadConfig() {
-      if (!saveToken()) return;
+      saveToken();
       setStatus('Loading...');
       fetch('/api/config', { headers: authHeaders() })
         .then(r => r.json())
@@ -712,10 +1130,130 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
           }
           cachedItems = data.items || [];
           renderRows();
+          syncLanguageSelect();
           setStatus('Loaded ' + cachedItems.length + ' keys.');
         })
         .catch(err => {
           setStatus(err.message || 'Failed to load', true);
+        });
+    }
+
+    function loadLinks() {
+      saveToken();
+      const query = linkSearch.value.trim();
+      setLinkStatus('Loading...');
+      const qs = query.length ? '?q=' + encodeURIComponent(query) : '';
+      fetch('/api/links' + qs, { headers: authHeaders() })
+        .then(r => r.json())
+        .then(data => {
+          if (!data.ok) {
+            throw new Error(data.error || 'Failed to load links');
+          }
+          cachedLinks = data.items || [];
+          renderLinks();
+          setLinkStatus('Loaded ' + cachedLinks.length + ' links.');
+        })
+        .catch(err => {
+          setLinkStatus(err.message || 'Failed to load links', true);
+        });
+    }
+
+    function formatRelative(ms) {
+      if (!ms) return 'n/a';
+      const diff = Date.now() - ms;
+      const seconds = Math.floor(diff / 1000);
+      if (seconds < 60) return seconds + 's ago';
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return minutes + 'm ago';
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return hours + 'h ago';
+      const days = Math.floor(hours / 24);
+      return days + 'd ago';
+    }
+
+    function renderLinks() {
+      linkRowsEl.innerHTML = '';
+      cachedLinks.forEach(item => {
+        const tr = document.createElement('tr');
+
+        const playerTd = document.createElement('td');
+        playerTd.textContent = item.playerName || 'unknown';
+
+        const discordTd = document.createElement('td');
+        discordTd.textContent = item.discordId || '';
+
+        const uuidTd = document.createElement('td');
+        uuidTd.textContent = item.uuid || '';
+
+        const seenTd = document.createElement('td');
+        seenTd.textContent = formatRelative(item.lastSeen);
+
+        const actionTd = document.createElement('td');
+        const unlinkBtn = document.createElement('button');
+        unlinkBtn.className = 'action-btn action-reset';
+        unlinkBtn.textContent = 'Unlink';
+        unlinkBtn.addEventListener('click', () => unlinkLink(item.uuid));
+
+        const randomizeBtn = document.createElement('button');
+        randomizeBtn.className = 'action-btn action-save';
+        randomizeBtn.textContent = 'Randomize';
+        randomizeBtn.style.marginLeft = '6px';
+        randomizeBtn.addEventListener('click', () => randomizeLink(item.uuid));
+
+        actionTd.appendChild(unlinkBtn);
+        actionTd.appendChild(randomizeBtn);
+
+        tr.appendChild(playerTd);
+        tr.appendChild(discordTd);
+        tr.appendChild(uuidTd);
+        tr.appendChild(seenTd);
+        tr.appendChild(actionTd);
+        linkRowsEl.appendChild(tr);
+      });
+    }
+
+    function unlinkLink(uuid) {
+      if (!uuid) return;
+      if (!confirm('Unlink this player?')) return;
+      const body = new URLSearchParams();
+      body.set('uuid', uuid);
+      fetch('/api/links/unlink', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded' }, authHeaders()),
+        body: body.toString()
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (!data.ok) {
+            throw new Error(data.error || 'Unlink failed');
+          }
+          setLinkStatus('Unlinked ' + uuid + '.', false);
+          loadLinks();
+        })
+        .catch(err => {
+          setLinkStatus(err.message || 'Unlink failed', true);
+        });
+    }
+
+    function randomizeLink(uuid) {
+      if (!uuid) return;
+      const body = new URLSearchParams();
+      body.set('uuid', uuid);
+      fetch('/api/links/randomize', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded' }, authHeaders()),
+        body: body.toString()
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (!data.ok) {
+            throw new Error(data.error || 'Randomize failed');
+          }
+          setLinkStatus('Randomized device ID for ' + uuid + '.', false);
+          loadLinks();
+        })
+        .catch(err => {
+          setLinkStatus(err.message || 'Randomize failed', true);
         });
     }
 
@@ -781,6 +1319,12 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
           note.textContent = 'Enter a new value to update.';
           valueTd.appendChild(note);
         }
+        if (item.description) {
+          const desc = document.createElement('div');
+          desc.className = 'muted';
+          desc.textContent = item.description;
+          valueTd.appendChild(desc);
+        }
 
         const actionTd = document.createElement('td');
         const saveBtn = document.createElement('button');
@@ -800,6 +1344,39 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         tr.appendChild(actionTd);
         rowsEl.appendChild(tr);
       });
+    }
+
+    function syncLanguageSelect() {
+      if (!langSelect) return;
+      const localeItem = cachedItems.find(item => item.key === 'locale');
+      if (!localeItem) return;
+      const value = (localeItem.value || 'en').toLowerCase();
+      if (langSelect.value !== value) {
+        langSelect.value = value;
+      }
+    }
+
+    function setConfigKey(key, value) {
+      if (!saveToken()) return;
+      const body = new URLSearchParams();
+      body.set('key', key);
+      body.set('value', value);
+      fetch('/api/config/set', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded' }, authHeaders()),
+        body: body.toString()
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (!data.ok) {
+            throw new Error(data.error || 'Update failed');
+          }
+          setStatus('Updated ' + key + (data.restart ? ' (restart required).' : '.'));
+          loadConfig();
+        })
+        .catch(err => {
+          setStatus(err.message || 'Update failed', true);
+        });
     }
 
     function saveValue(key, input) {
@@ -853,7 +1430,27 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
 
     connectBtn.addEventListener('click', loadConfig);
     reloadBtn.addEventListener('click', loadConfig);
+    logoutBtn.addEventListener('click', () => { window.location = '/logout'; });
+    loadLinksBtn.addEventListener('click', loadLinks);
+    if (langSelect) {
+      langSelect.addEventListener('change', () => setConfigKey('locale', langSelect.value));
+    }
     searchInput.addEventListener('input', renderRows);
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabs.forEach(other => other.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.getAttribute('data-tab');
+        if (tab === 'links') {
+          settingsPanel.classList.add('hidden');
+          linksPanel.classList.remove('hidden');
+        } else {
+          linksPanel.classList.add('hidden');
+          settingsPanel.classList.remove('hidden');
+        }
+      });
+    });
+    refreshAuth();
   </script>
 </body>
 </html>

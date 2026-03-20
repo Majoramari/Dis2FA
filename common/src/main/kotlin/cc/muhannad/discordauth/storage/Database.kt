@@ -399,7 +399,7 @@ class Database(private val plugin: JavaPlugin) {
             ).use { ps ->
                 ps.setString(1, pattern)
                 ps.setString(2, pattern)
-                ps.setInt(3, limit.coerceAtMost(25))
+                ps.setInt(3, limit.coerceIn(1, 100))
                 ps.executeQuery().use { rs ->
                     val results = mutableListOf<Link>()
                     while (rs.next()) {

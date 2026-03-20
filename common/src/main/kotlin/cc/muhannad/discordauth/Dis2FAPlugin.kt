@@ -195,6 +195,10 @@ abstract class Dis2FAPlugin : JavaPlugin() {
         webConfigServer?.reloadFromConfig()
     }
 
+    fun createWebLoginLink(hostOverride: String?): String? {
+        return webConfigServer?.createMagicLink(hostOverride)
+    }
+
     fun computeDeviceId(uuid: UUID, ip: String): String {
         return HashUtil.deviceId(
             uuid = uuid,

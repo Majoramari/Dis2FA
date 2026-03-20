@@ -167,6 +167,8 @@ cmd:
   usage-randomize: "&cUsage: /da randomizeid <player>"
   no-link: "&cNo Discord link found for that player."
   randomized: "&aDevice ID randomized. Next join will trigger approval."
+  web-disabled: "&cWeb editor is disabled. Enable web-editor.enabled in config.yml."
+  web-link: "&aWeb editor link: &f{URL}"
   only-players: "&cOnly players can use this command."
   not-linked: "&cYou are not linked to Discord."
 
@@ -175,6 +177,7 @@ cmd:
   help-status: "&e/da status&7 - Show plugin status"
   help-reload: "&e/da reload&7 - Reload config"
   help-randomize: "&e/da randomizeid [player]&7 - Randomize device ID (testing)"
+  help-web: "&e/da web [host]&7 - Get a one-time web editor link"
   help-unlink: "&e/unlink&7 - Unlink your Discord account"
   help-footer: "&6═════════════════════"
 

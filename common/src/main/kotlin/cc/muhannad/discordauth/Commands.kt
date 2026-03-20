@@ -44,6 +44,20 @@ class CommandHandler(private val plugin: Dis2FAPlugin) : CommandExecutor, TabCom
                 handleRandomizeId(sender, args)
                 true
             }
+            "web" -> {
+                if (!sender.hasPermission("discordauth.admin")) {
+                    sender.sendMessage(msg("cmd.no-permission"))
+                    return true
+                }
+                val hostOverride = args.getOrNull(1)
+                val link = plugin.createWebLoginLink(hostOverride)
+                if (link == null) {
+                    sender.sendMessage(msg("cmd.web-disabled"))
+                } else {
+                    sender.sendMessage(msg("cmd.web-link", mapOf("URL" to link)))
+                }
+                true
+            }
             "status" -> {
                 showStatus(sender)
                 true
@@ -69,6 +83,7 @@ class CommandHandler(private val plugin: Dis2FAPlugin) : CommandExecutor, TabCom
             if (sender.hasPermission("discordauth.admin")) {
                 options.add("reload")
                 options.add("randomizeid")
+                options.add("web")
             }
 
             return options.filter { it.startsWith(args[0], ignoreCase = true) }
@@ -83,6 +98,7 @@ class CommandHandler(private val plugin: Dis2FAPlugin) : CommandExecutor, TabCom
         if (sender.hasPermission("discordauth.admin")) {
             sender.sendMessage(msg("cmd.help-reload"))
             sender.sendMessage(msg("cmd.help-randomize"))
+            sender.sendMessage(msg("cmd.help-web"))
         }
         sender.sendMessage(msg("cmd.help-unlink"))
         sender.sendMessage(msg("cmd.help-footer"))

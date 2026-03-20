@@ -167,6 +167,8 @@ cmd:
   usage-randomize: "&cالصيغة: /da randomizeid <player>"
   no-link: "&cلا يوجد ربط ديسكورد لهذا اللاعب."
   randomized: "&aتم تغيير معرف الجهاز. المحاولة التالية ستتطلب الموافقة."
+  web-disabled: "&cمحرر الويب معطل. فعّل web-editor.enabled في config.yml."
+  web-link: "&aرابط محرر الويب: &f{URL}"
   only-players: "&cهذا الأمر للاعبين فقط."
   not-linked: "&cأنت غير مرتبط بديسكورد."
 
@@ -175,6 +177,7 @@ cmd:
   help-status: "&e/da status&7 - عرض حالة الإضافة"
   help-reload: "&e/da reload&7 - إعادة تحميل الإعدادات"
   help-randomize: "&e/da randomizeid [player]&7 - تغيير معرف الجهاز (للاختبار)"
+  help-web: "&e/da web [host]&7 - رابط لمحرر الويب (مرة واحدة)"
   help-unlink: "&e/unlink&7 - إلغاء ربط حساب ديسكورد"
   help-footer: "&6═════════════════════"
 
