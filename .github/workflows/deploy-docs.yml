@@ -19,16 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v1
         with:
-          node-version: 20
-          cache: npm
+          bun-version: latest
       - name: Install deps
-        run: npm install
+        run: bun install
       - name: Build docs
         env:
           VITEPRESS_BASE: "/${{ github.event.repository.name }}/"
-        run: npm run docs:build
+        run: bun run docs:build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
