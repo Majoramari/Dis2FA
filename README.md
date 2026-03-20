@@ -44,7 +44,3 @@ Artifacts:
 - `bukkit/build/libs/Dis2FA-bukkit-<version>.jar`
 - `paper/build/libs/Dis2FA-paper-<version>.jar`
 - `folia/build/libs/Dis2FA-folia-<version>.jar`
-
-## More Documentation
-
-See `docs/index.md` for the full VitePress documentation (web editor, linked players, configuration details).
