@@ -67,6 +67,7 @@
 ## Web Editor
 
 - `web-editor.enabled`: Enable the web editor (default: true).
-- `web-editor.bind-address`: Bind address for the HTTP server (default: `127.0.0.1`).
+- `web-editor.bind-address`: Bind address for the HTTP server (default: `0.0.0.0`).
 - `web-editor.port`: Port for the editor.
 - `web-editor.token`: Access token (auto-generated if empty). Optional if you use `/da web`.
+- `web-editor.public-url`: Public URL used in magic links (optional).

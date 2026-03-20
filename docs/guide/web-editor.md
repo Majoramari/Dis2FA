@@ -6,7 +6,7 @@ managing Discord links.
 ## Setup
 
 1. Ensure `web-editor.enabled: true` (default).
-2. Keep `web-editor.bind-address` as `127.0.0.1` for local access (default). Use `0.0.0.0` for external access.
+2. Keep `web-editor.bind-address` as `0.0.0.0` for external access (default). Use `127.0.0.1` for local-only access.
 3. Set `web-editor.port` if you want a different port.
 4. Reload or restart the server.
 5. Open `http://YOUR_SERVER_IP:8166`.
@@ -29,6 +29,7 @@ about 12 hours. If you need a different host (reverse proxy or domain), use:
 ```
 
 You can also pass a full URL (including `https://`) if needed.
+Alternatively, set `web-editor.public-url` in `config.yml` to define the default URL used for magic links.
 
 ### Token
 

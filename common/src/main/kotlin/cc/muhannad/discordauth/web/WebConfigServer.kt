@@ -79,7 +79,8 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         "web-editor.enabled" to "Enable the web config editor.",
         "web-editor.bind-address" to "Address the web editor binds to.",
         "web-editor.port" to "Port for the web editor.",
-        "web-editor.token" to "Token for web editor API access."
+        "web-editor.token" to "Token for web editor API access.",
+        "web-editor.public-url" to "Public URL used in magic links (optional)."
     )
     private val sessions = ConcurrentHashMap<String, Session>()
     private val magicLinks = ConcurrentHashMap<String, Long>()
@@ -95,7 +96,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     fun startFromConfig() {
         val cfg = plugin.config
         val enabled = cfg.getBoolean("web-editor.enabled", false)
-        val newHost = cfg.getString("web-editor.bind-address")?.trim().orEmpty().ifBlank { "127.0.0.1" }
+        val newHost = cfg.getString("web-editor.bind-address")?.trim().orEmpty().ifBlank { "0.0.0.0" }
         val newPort = cfg.getInt("web-editor.port", 8166).coerceIn(1, 65535)
         val newToken = cfg.getString("web-editor.token")?.trim().orEmpty()
 
@@ -719,24 +720,34 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     private fun resolveBaseUrl(hostOverride: String?): String? {
         val override = hostOverride?.trim().orEmpty()
         if (override.isNotBlank()) {
-            if (override.startsWith("http://") || override.startsWith("https://")) {
-                return override.trimEnd('/')
-            }
-            return if (override.contains(":")) {
-                "http://$override"
-            } else {
-                "http://$override:$port"
-            }
+            return normalizeBaseUrl(override)
+        }
+
+        val publicUrl = plugin.config.getString("web-editor.public-url")?.trim().orEmpty()
+        if (publicUrl.isNotBlank()) {
+            return normalizeBaseUrl(publicUrl)
         }
 
         val bind = host.trim().ifBlank { "127.0.0.1" }
         val resolved = if (bind == "0.0.0.0" || bind == "::") {
             val serverIp = plugin.server.ip?.trim().orEmpty()
-            if (serverIp.isNotBlank()) serverIp else "localhost"
+            if (serverIp.isNotBlank()) serverIp else "0.0.0.0"
         } else {
             bind
         }
         return "http://$resolved:$port"
+    }
+
+    private fun normalizeBaseUrl(raw: String): String {
+        val trimmed = raw.trim().trimEnd('/')
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed
+        }
+        return if (trimmed.contains(":")) {
+            "http://$trimmed"
+        } else {
+            "http://$trimmed:$port"
+        }
     }
 
     private fun redirect(exchange: HttpExchange, location: String) {

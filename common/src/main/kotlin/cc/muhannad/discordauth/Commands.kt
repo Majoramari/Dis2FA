@@ -52,9 +52,11 @@ class CommandHandler(private val plugin: Dis2FAPlugin) : CommandExecutor, TabCom
                 val hostOverride = args.getOrNull(1)
                 val link = plugin.createWebLoginLink(hostOverride)
                 if (link == null) {
-                    sender.sendMessage(msg("cmd.web-disabled"))
+                    val message = msg("cmd.web-disabled")
+                    sender.sendMessage(message.ifBlank { "Web editor is disabled." })
                 } else {
-                    sender.sendMessage(msg("cmd.web-link", mapOf("URL" to link)))
+                    val message = msg("cmd.web-link", mapOf("URL" to link))
+                    sender.sendMessage(message.ifBlank { "Web editor link: $link" })
                 }
                 true
             }
