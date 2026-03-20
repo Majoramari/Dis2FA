@@ -406,6 +406,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         }
 
         plugin.database.unlink(link.uuid)
+        plugin.kickIfOnline(link.uuid, plugin.configManager.formatKickMessage("unlink-kick"))
         sendJson(exchange, 200, """{"ok":true}""")
     }
 
@@ -438,6 +439,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
 
         val newDeviceId = java.util.UUID.randomUUID().toString().replace("-", "")
         plugin.database.updateDeviceIdOnly(uuid, newDeviceId, System.currentTimeMillis())
+        plugin.kickIfOnline(uuid, plugin.configManager.formatKickMessage("kick-device-change"))
         sendJson(exchange, 200, """{"ok":true,"deviceId":"${jsonEscape(newDeviceId)}"}""")
     }
 
@@ -459,6 +461,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         val value: String,
         val sensitive: Boolean,
         val restart: Boolean,
+        val displayName: String,
         val description: String
     )
 
@@ -498,6 +501,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
                 value = displayValue,
                 sensitive = sensitiveKeys.contains(key),
                 restart = restartKeys.contains(key),
+                displayName = plugin.configManager.displayNameForKey(key),
                 description = descriptions[key] ?: "No description available."
             )
         }
@@ -514,6 +518,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
             sb.append(""""value":"${jsonEscape(item.value)}",""")
             sb.append(""""sensitive":${item.sensitive},""")
             sb.append(""""restart":${item.restart},""")
+            sb.append(""""displayName":"${jsonEscape(item.displayName)}",""")
             sb.append(""""description":"${jsonEscape(item.description)}"""")
             sb.append("}")
         }
@@ -836,21 +841,21 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
   <title>Dis2FA Config Editor</title>
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f6f2ea;
-      --panel: #ffffff;
-      --text: #1d1d1d;
-      --muted: #6b6b6b;
-      --accent: #2a7f62;
-      --danger: #c0392b;
-      --border: #e3dbcf;
-      --code: #f2efe8;
+      color-scheme: dark;
+      --bg: #111315;
+      --panel: #191c20;
+      --text: #f2f2f2;
+      --muted: #a0a6ad;
+      --accent: #49c2a3;
+      --danger: #e05a5a;
+      --border: #2a2f36;
+      --code: #20252b;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #fff7e9 0, #f6f2ea 50%, #efe9df 100%);
+      background: radial-gradient(circle at top, #1c222a 0, #111315 55%, #0b0d10 100%);
       color: var(--text);
     }
     header {
@@ -893,12 +898,12 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       border-radius: 999px;
       padding: 8px 14px;
       font-size: 13px;
-      background: #f3ede2;
+      background: #22262c;
       cursor: pointer;
     }
     .tab-btn.active {
       background: var(--accent);
-      color: #fff;
+      color: #0d1a16;
       border-color: transparent;
     }
     .panel.hidden {
@@ -909,6 +914,8 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       border-radius: 8px;
       padding: 10px 12px;
       font-size: 14px;
+      background: #1b2026;
+      color: var(--text);
     }
     .controls button {
       background: var(--accent);
@@ -917,7 +924,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       border: none;
     }
     .controls button.secondary {
-      background: #e6dfd2;
+      background: #2a2f36;
       color: var(--text);
     }
     .status {
@@ -947,7 +954,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       vertical-align: middle;
     }
     th {
-      background: #faf7f0;
+      background: #1f2328;
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
@@ -969,8 +976,8 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       padding: 4px 8px;
       border-radius: 999px;
       font-size: 11px;
-      background: #ffe7d6;
-      color: #8b3c2f;
+      background: #2a2f36;
+      color: #f0b088;
       margin-left: 8px;
     }
     .action-btn {
@@ -989,6 +996,60 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 13px;
+      background: #1b2026;
+      color: var(--text);
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 42px;
+      height: 22px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #2a2f36;
+      transition: .2s;
+      border-radius: 999px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      top: 3px;
+      background-color: #f4f4f4;
+      transition: .2s;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .switch input:checked + .slider {
+      background-color: var(--accent);
+    }
+    .switch input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    .player-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
     }
     .muted {
       color: var(--muted);
@@ -1027,8 +1088,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       <table>
         <thead>
           <tr>
-            <th>Key</th>
-            <th>Type</th>
+            <th>Setting</th>
             <th>Value</th>
             <th>Actions</th>
           </tr>
@@ -1040,7 +1100,6 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     <section id="linksPanel" class="panel hidden">
       <div class="controls">
         <input id="linkSearch" type="search" placeholder="Search players or Discord IDs">
-        <button id="loadLinks">Load Links</button>
       </div>
       <div id="linkStatus" class="status">No data loaded.</div>
       <table>
@@ -1067,7 +1126,6 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     const statusEl = document.getElementById('status');
     const rowsEl = document.getElementById('rows');
     const linkSearch = document.getElementById('linkSearch');
-    const loadLinksBtn = document.getElementById('loadLinks');
     const linkStatusEl = document.getElementById('linkStatus');
     const linkRowsEl = document.getElementById('linkRows');
     const tabs = document.querySelectorAll('.tab-btn');
@@ -1076,6 +1134,8 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     let cachedItems = [];
     let cachedLinks = [];
     let authMode = 'none';
+    let linksLoaded = false;
+    let linkSearchTimer = null;
 
     const storedToken = localStorage.getItem('dis2fa_token') || '';
     tokenInput.value = storedToken;
@@ -1177,7 +1237,17 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         const tr = document.createElement('tr');
 
         const playerTd = document.createElement('td');
-        playerTd.textContent = item.playerName || 'unknown';
+        playerTd.className = 'player-cell';
+        const avatar = document.createElement('img');
+        const playerName = item.playerName || '';
+        const avatarKey = playerName.length ? playerName : (item.uuid || '');
+        avatar.src = 'https://minotar.net/avatar/' + encodeURIComponent(avatarKey) + '/32';
+        avatar.alt = playerName || 'player';
+        avatar.className = 'avatar';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = playerName || 'unknown';
+        playerTd.appendChild(avatar);
+        playerTd.appendChild(nameSpan);
 
         const discordTd = document.createElement('td');
         discordTd.textContent = item.discordId || '';
@@ -1262,7 +1332,8 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
       rowsEl.innerHTML = '';
       let rowIndex = 0;
       cachedItems.forEach(item => {
-        if (filter && item.key.toLowerCase().indexOf(filter) === -1) {
+        const haystack = (item.displayName + ' ' + (item.description || '')).toLowerCase();
+        if (filter && haystack.indexOf(filter) === -1) {
           return;
         }
         const tr = document.createElement('tr');
@@ -1271,10 +1342,9 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         rowIndex += 1;
 
         const keyTd = document.createElement('td');
-        const keySpan = document.createElement('span');
-        keySpan.className = 'key';
-        keySpan.textContent = item.key;
-        keyTd.appendChild(keySpan);
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = item.displayName || item.key;
+        keyTd.appendChild(nameSpan);
         if (item.restart) {
           const badge = document.createElement('span');
           badge.className = 'badge';
@@ -1282,22 +1352,21 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
           keyTd.appendChild(badge);
         }
 
-        const typeTd = document.createElement('td');
-        typeTd.textContent = item.type;
-
         const valueTd = document.createElement('td');
         let input;
         if (item.type === 'boolean') {
-          input = document.createElement('select');
-          const optTrue = document.createElement('option');
-          optTrue.value = 'true';
-          optTrue.textContent = 'true';
-          const optFalse = document.createElement('option');
-          optFalse.value = 'false';
-          optFalse.textContent = 'false';
-          input.appendChild(optTrue);
-          input.appendChild(optFalse);
-          input.value = (item.value || 'false').toString().toLowerCase() === 'true' ? 'true' : 'false';
+          const wrapper = document.createElement('label');
+          wrapper.className = 'switch';
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = (item.value || 'false').toString().toLowerCase() === 'true';
+          checkbox.dataset.kind = 'boolean';
+          const slider = document.createElement('span');
+          slider.className = 'slider';
+          wrapper.appendChild(checkbox);
+          wrapper.appendChild(slider);
+          valueTd.appendChild(wrapper);
+          input = checkbox;
         } else {
           input = document.createElement('input');
           input.type = item.type === 'number' ? 'number' : 'text';
@@ -1305,14 +1374,16 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
           if (item.type === 'list') {
             input.placeholder = 'comma, separated';
           }
+          valueTd.appendChild(input);
         }
-        input.className = 'value-input';
+        if (input) {
+          input.className = input.type === 'checkbox' ? '' : 'value-input';
+        }
         if (item.sensitive) {
           input.value = '';
           input.placeholder = 'hidden';
           input.dataset.sensitive = 'true';
         }
-        valueTd.appendChild(input);
         if (item.sensitive) {
           const note = document.createElement('div');
           note.className = 'muted';
@@ -1330,16 +1401,15 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         const saveBtn = document.createElement('button');
         saveBtn.className = 'action-btn action-save';
         saveBtn.textContent = 'Save';
-        saveBtn.addEventListener('click', () => saveValue(item.key, input));
+        saveBtn.addEventListener('click', () => saveValue(item, input));
         const resetBtn = document.createElement('button');
         resetBtn.className = 'action-btn action-reset';
         resetBtn.textContent = 'Reset';
-        resetBtn.addEventListener('click', () => resetValue(item.key));
+        resetBtn.addEventListener('click', () => resetValue(item));
         actionTd.appendChild(saveBtn);
         actionTd.appendChild(resetBtn);
 
         tr.appendChild(keyTd);
-        tr.appendChild(typeTd);
         tr.appendChild(valueTd);
         tr.appendChild(actionTd);
         rowsEl.appendChild(tr);
@@ -1379,15 +1449,20 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         });
     }
 
-    function saveValue(key, input) {
+    function saveValue(item, input) {
       if (!saveToken()) return;
+      const name = item.displayName || item.key;
       if (input.dataset.sensitive === 'true' && input.value.trim() === '') {
-        setStatus('Enter a value for ' + key + ' or use Reset.', true);
+        setStatus('Enter a value for ' + name + ' or use Reset.', true);
         return;
       }
+      let value = input.value;
+      if (input.type === 'checkbox') {
+        value = input.checked ? 'true' : 'false';
+      }
       const body = new URLSearchParams();
-      body.set('key', key);
-      body.set('value', input.value);
+      body.set('key', item.key);
+      body.set('value', value);
       fetch('/api/config/set', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded' }, authHeaders()),
@@ -1398,7 +1473,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
           if (!data.ok) {
             throw new Error(data.error || 'Update failed');
           }
-          setStatus('Updated ' + key + (data.restart ? ' (restart required).' : '.'));
+          setStatus('Updated ' + name + (data.restart ? ' (restart required).' : '.'));
           loadConfig();
         })
         .catch(err => {
@@ -1406,10 +1481,11 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         });
     }
 
-    function resetValue(key) {
+    function resetValue(item) {
       if (!saveToken()) return;
+      const name = item.displayName || item.key;
       const body = new URLSearchParams();
-      body.set('key', key);
+      body.set('key', item.key);
       fetch('/api/config/reset', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/x-www-form-urlencoded' }, authHeaders()),
@@ -1420,7 +1496,7 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
           if (!data.ok) {
             throw new Error(data.error || 'Reset failed');
           }
-          setStatus('Reset ' + key + (data.restart ? ' (restart required).' : '.'));
+          setStatus('Reset ' + name + (data.restart ? ' (restart required).' : '.'));
           loadConfig();
         })
         .catch(err => {
@@ -1431,11 +1507,16 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
     connectBtn.addEventListener('click', loadConfig);
     reloadBtn.addEventListener('click', loadConfig);
     logoutBtn.addEventListener('click', () => { window.location = '/logout'; });
-    loadLinksBtn.addEventListener('click', loadLinks);
     if (langSelect) {
       langSelect.addEventListener('change', () => setConfigKey('locale', langSelect.value));
     }
     searchInput.addEventListener('input', renderRows);
+    linkSearch.addEventListener('input', () => {
+      if (linkSearchTimer) {
+        clearTimeout(linkSearchTimer);
+      }
+      linkSearchTimer = setTimeout(loadLinks, 300);
+    });
     tabs.forEach(btn => {
       btn.addEventListener('click', () => {
         tabs.forEach(other => other.classList.remove('active'));
@@ -1444,6 +1525,10 @@ class WebConfigServer(private val plugin: Dis2FAPlugin) {
         if (tab === 'links') {
           settingsPanel.classList.add('hidden');
           linksPanel.classList.remove('hidden');
+          if (!linksLoaded) {
+            linksLoaded = true;
+            loadLinks();
+          }
         } else {
           linksPanel.classList.add('hidden');
           settingsPanel.classList.remove('hidden');

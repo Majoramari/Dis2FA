@@ -199,6 +199,11 @@ abstract class Dis2FAPlugin : JavaPlugin() {
         return webConfigServer?.createMagicLink(hostOverride)
     }
 
+    fun kickIfOnline(uuid: UUID, message: String) {
+        val player = Bukkit.getPlayer(uuid) ?: return
+        platform.runSync(Runnable { player.kickPlayer(message) })
+    }
+
     fun computeDeviceId(uuid: UUID, ip: String): String {
         return HashUtil.deviceId(
             uuid = uuid,

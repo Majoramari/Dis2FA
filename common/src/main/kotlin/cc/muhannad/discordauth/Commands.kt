@@ -171,6 +171,7 @@ class CommandHandler(private val plugin: Dis2FAPlugin) : CommandExecutor, TabCom
 
         val newDeviceId = UUID.randomUUID().toString().replace("-", "")
         plugin.database.updateDeviceIdOnly(targetUuid, newDeviceId, System.currentTimeMillis())
+        plugin.kickIfOnline(targetUuid, plugin.configManager.formatKickMessage("kick-device-change"))
         sender.sendMessage(msg("cmd.randomized"))
     }
 

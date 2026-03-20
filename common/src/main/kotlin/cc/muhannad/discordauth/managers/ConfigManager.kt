@@ -20,6 +20,54 @@ class ConfigManager(private val plugin: Dis2FAPlugin) {
 
     private var langConfig: YamlConfiguration = YamlConfiguration()
     private var fallbackLangConfig: YamlConfiguration = YamlConfiguration()
+    private val displayNameOverrides = mapOf(
+        "locale" to "Language",
+        "fallback-locale" to "Fallback Language",
+        "bot-token" to "Bot Token",
+        "discord-invite" to "Discord Invite",
+        "alerts-channel-id" to "Alerts Channel ID",
+        "discord.guild-id" to "Discord Guild ID",
+        "discord.clear-global-commands" to "Clear Global Commands",
+        "discord.bot-name" to "Bot Display Name",
+        "discord.link-channel-name" to "Link Channel Name",
+        "discord.allowed-role-ids" to "Allowed Role IDs",
+        "discord.require-member" to "Require Discord Member",
+        "discord.member-check-timeout-seconds" to "Member Check Timeout (Seconds)",
+        "discord.allow-guild-link" to "Allow Guild Linking",
+        "discord.link-channel-id" to "Link Channel ID",
+        "discord.presence.status" to "Presence Status",
+        "discord.presence.activity.type" to "Presence Activity Type",
+        "discord.presence.activity.text" to "Presence Activity Text",
+        "discord.presence.update-seconds" to "Presence Update Interval (Seconds)",
+        "ban-sync.enabled" to "Ban Sync Enabled",
+        "ban-sync.apply-minecraft-ban" to "Apply Minecraft Ban",
+        "ban-sync.ban-reason" to "Ban Reason",
+        "code-length" to "Verification Code Length",
+        "code-expiration-seconds" to "Code Expiration (Seconds)",
+        "device-approval-seconds" to "Device Approval (Seconds)",
+        "device-id.salt" to "Device ID Salt",
+        "device-id.ip-prefix-v4" to "Device ID IPv4 Prefix",
+        "device-id.ip-prefix-v6" to "Device ID IPv6 Prefix",
+        "chat-bridge.enabled" to "Chat Bridge Enabled",
+        "chat-bridge.discord-channel-id" to "Chat Bridge Channel ID",
+        "chat-bridge.webhook-url" to "Chat Bridge Webhook URL",
+        "chat-bridge.webhook-username-format" to "Webhook Username Format",
+        "chat-bridge.avatar-url" to "Chat Bridge Avatar URL",
+        "chat-bridge.minecraft-format" to "Discord to Minecraft Format",
+        "chat-bridge.discord-format" to "Minecraft to Discord Format",
+        "chat-bridge.bridge-joins" to "Bridge Join Messages",
+        "chat-bridge.bridge-quits" to "Bridge Quit Messages",
+        "chat-bridge.bridge-deaths" to "Bridge Death Messages",
+        "chat-bridge.bridge-advancements" to "Bridge Advancement Messages",
+        "chat-bridge.join-format" to "Join Message Format",
+        "chat-bridge.quit-format" to "Quit Message Format",
+        "chat-bridge.death-format" to "Death Message Format",
+        "chat-bridge.advancement-format" to "Advancement Message Format",
+        "web-editor.enabled" to "Web Editor Enabled",
+        "web-editor.bind-address" to "Web Editor Bind Address",
+        "web-editor.port" to "Web Editor Port",
+        "web-editor.token" to "Web Editor Token"
+    )
 
     fun initialize() {
         plugin.saveDefaultConfig()
@@ -168,6 +216,28 @@ class ConfigManager(private val plugin: Dis2FAPlugin) {
         val bytes = ByteArray(24)
         random.nextBytes(bytes)
         return Base64.getEncoder().encodeToString(bytes)
+    }
+
+    fun displayNameForKey(key: String): String {
+        displayNameOverrides[key]?.let { return it }
+        return key.split(".")
+            .joinToString(" ") { part ->
+                part.split("-")
+                    .joinToString(" ") { word -> formatDisplayWord(word) }
+            }
+            .trim()
+    }
+
+    private fun formatDisplayWord(word: String): String {
+        val lower = word.lowercase()
+        return when (lower) {
+            "id" -> "ID"
+            "ip" -> "IP"
+            "v4" -> "IPv4"
+            "v6" -> "IPv6"
+            "tps" -> "TPS"
+            else -> lower.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
     }
 
     fun getLocale(): String = config.getString("locale") ?: "en"

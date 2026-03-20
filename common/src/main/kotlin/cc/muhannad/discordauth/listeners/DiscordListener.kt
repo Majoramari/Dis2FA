@@ -36,6 +36,11 @@ import cc.muhannad.discordauth.utils.AvatarLinkImage
 class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
     private val linkButtonId = "da:linkbutton"
     private val linkModalPrefix = "da:linkmodal"
+    private val sensitiveKeys = setOf(
+        "bot-token",
+        "chat-bridge.webhook-url",
+        "web-editor.token"
+    )
     private val restartKeys = setOf("bot-token", "discord.guild-id", "discord.clear-global-commands")
 
     override fun onReady(event: ReadyEvent) {
@@ -130,7 +135,10 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
             event.name == "config" && event.focusedOption.name == "key" -> {
                 val query = event.focusedOption.value
                 val keys = suggestConfigKeys(query)
-                val choices = keys.map { key -> Command.Choice(key, key) }
+                val choices = keys.map { key ->
+                    val name = plugin.configManager.displayNameForKey(key)
+                    Command.Choice(name, key)
+                }
                 event.replyChoices(choices).queue()
             }
         }
@@ -205,6 +213,7 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
                     return
                 }
                 plugin.database.unlink(link.uuid)
+                plugin.kickIfOnline(link.uuid, plugin.configManager.formatKickMessage("unlink-kick"))
                 event.replyEmbeds(embed(title("unlink"), t("discord.unlinked"), Color(46, 204, 113)))
                     .setEphemeral(true)
                     .queue()
@@ -243,6 +252,7 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
                 }
                 val newDeviceId = UUID.randomUUID().toString().replace("-", "")
                 plugin.database.updateDeviceIdOnly(link.uuid, newDeviceId, System.currentTimeMillis())
+                plugin.kickIfOnline(link.uuid, plugin.configManager.formatKickMessage("kick-device-change"))
                 val msg = t("discord.randomize-success", mapOf("PLAYER" to link.playerName))
                 event.replyEmbeds(embed(title("randomize"), msg, Color(46, 204, 113)))
                     .setEphemeral(true)
@@ -425,7 +435,8 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
 
         val value = plugin.config.get(key)
         val display = formatConfigValue(key, value)
-        val message = t("discord.config-get", mapOf("KEY" to key, "VALUE" to display))
+        val name = plugin.configManager.displayNameForKey(key)
+        val message = t("discord.config-get", mapOf("NAME" to name, "VALUE" to display))
 
         event.replyEmbeds(embed(title("config"), message, Color(52, 152, 219)))
             .setEphemeral(true)
@@ -449,7 +460,8 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
                         hook.editOriginalEmbeds(embed(title("config"), result.message, Color(231, 76, 60))).queue()
                     }
                     is ConfigChangeResult.Success -> {
-                        val base = t("discord.config-set", mapOf("KEY" to key, "VALUE" to result.displayValue))
+                        val name = plugin.configManager.displayNameForKey(key)
+                        val base = t("discord.config-set", mapOf("NAME" to name, "VALUE" to result.displayValue))
                         val note = if (result.requiresRestart) "\n" + t("discord.config-note-restart") else ""
                         hook.editOriginalEmbeds(embed(title("config"), base + note, Color(46, 204, 113))).queue()
                     }
@@ -476,7 +488,8 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
 
                 val defaultValue = plugin.config.defaults?.get(key)
                 val display = formatConfigValue(key, defaultValue)
-                val message = t("discord.config-reset", mapOf("KEY" to key, "VALUE" to display))
+                val name = plugin.configManager.displayNameForKey(key)
+                val message = t("discord.config-reset", mapOf("NAME" to name, "VALUE" to display))
                 val note = if (restartKeys.contains(key)) "\n" + t("discord.config-note-restart") else ""
 
                 hook.editOriginalEmbeds(embed(title("config"), message + note, Color(46, 204, 113))).queue()
@@ -492,9 +505,10 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
     private fun applyConfigSet(key: String, rawValue: String): ConfigChangeResult {
         return when (val parsed = parseConfigValue(key, rawValue)) {
             is ConfigParseResult.Error -> {
+                val name = plugin.configManager.displayNameForKey(key)
                 val message = t(
                     "discord.config-invalid-value",
-                    mapOf("KEY" to key, "TYPE" to parsed.expectedType)
+                    mapOf("NAME" to name)
                 )
                 ConfigChangeResult.Error(message)
             }
@@ -560,6 +574,7 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
     }
 
     private fun formatConfigValue(key: String, value: Any?): String {
+        if (sensitiveKeys.contains(key)) return t("discord.config-hidden")
         return when (value) {
             null -> "null"
             is List<*> -> {
@@ -573,7 +588,9 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
     private fun isConfigKeySupported(key: String): Boolean {
         if (key.isBlank()) return false
         val config = plugin.config
-        return !config.isConfigurationSection(key)
+        if (config.isConfigurationSection(key)) return false
+        if (config.contains(key)) return true
+        return config.defaults?.contains(key) == true
     }
 
     private fun suggestConfigKeys(query: String): List<String> {
@@ -583,7 +600,10 @@ class DiscordListener(private val plugin: Dis2FAPlugin) : ListenerAdapter() {
             .sorted()
         if (query.isBlank()) return keys.take(25)
         val q = query.lowercase()
-        return keys.filter { it.lowercase().contains(q) }.take(25)
+        return keys.filter { key ->
+            val name = plugin.configManager.displayNameForKey(key).lowercase()
+            key.lowercase().contains(q) || name.contains(q)
+        }.take(25)
     }
 
     private sealed class LinkResult {
