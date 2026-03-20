@@ -6,3 +6,5 @@ pluginManagement {
         mavenCentral()
     }
 }
+
+include("common", "bukkit", "paper", "folia")

@@ -1,78 +1,50 @@
+import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.tasks.compile.JavaCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
-    kotlin("jvm") version "2.1.0"
+    kotlin("jvm") version "2.1.0" apply false
 }
 
-group = "cc.muhannad"
-version = "1.0.0"
+allprojects {
+    group = "cc.muhannad"
+    version = "1.3.0"
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+    repositories {
+        mavenCentral()
+        maven("https://repo.papermc.io/repository/maven-public/")
+        maven("https://maven.dv8tion.net/releases")
+        maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
     }
 }
 
-kotlin {
-    jvmToolchain(21)
-}
+subprojects {
+    apply(plugin = "org.jetbrains.kotlin.jvm")
 
-repositories {
-    mavenCentral()
-    maven("https://repo.papermc.io/repository/maven-public/")
-    maven("https://maven.dv8tion.net/releases") // JDA repository
-}
-
-dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
-    
-    // JDA - Discord API (bundled, not compileOnly)
-    implementation("net.dv8tion:JDA:5.4.0") {
-        exclude("org.slf4j")
+    extensions.configure<JavaPluginExtension> {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    
-    // Kotlin stdlib
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.1.0")
-    
-    // SQLite (bundled)
-    implementation("org.xerial:sqlite-jdbc:3.46.1.0")
-}
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
-        freeCompilerArgs.add("-Xjdk-release=21")
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+            freeCompilerArgs.add("-Xjdk-release=17")
+        }
     }
-}
 
-tasks {
-    processResources {
-        val props = mapOf("version" to version)
-        inputs.properties(props)
-        filteringCharset = "UTF-8"
-        filesMatching("plugin.yml") {
+    tasks.withType<JavaCompile>().configureEach {
+        options.release.set(17)
+    }
+
+    tasks.matching { it.name == "processResources" }.configureEach {
+        val task = this as org.gradle.api.tasks.Copy
+        val props = mapOf("version" to project.version)
+        task.inputs.properties(props)
+        task.filteringCharset = "UTF-8"
+        task.filesMatching("plugin.yml") {
             expand(props)
         }
-    }
-    
-    // Use regular jar instead of shadowJar due to Kotlin 2.1 compatibility issues
-    jar {
-        archiveClassifier.set("")
-        archiveFileName.set("Dis2FA-${version}.jar")
-        
-        // Set duplicate handling strategy
-        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-        
-        // Include all runtime dependencies
-        from(configurations.runtimeClasspath.get().map { 
-            if (it.isDirectory) it else zipTree(it) 
-        }) {
-            exclude("META-INF/*.RSA", "META-INF/*.SF", "META-INF/*.DSA")
-            exclude("META-INF/maven/**")
-            exclude("META-INF/versions/**")
-            exclude("META-INF/*.kotlin_module")
-        }
-    }
-    
-    build {
-        dependsOn(jar)
     }
 }

@@ -1,0 +1,29 @@
+name: Dis2FA
+version: ${version}
+main: cc.muhannad.discordauth.PaperDis2FAPlugin
+api-version: "1.20"
+description: Discord-based authentication with Discord linking and device approvals
+author: Muhannad
+website: https://muhannad.cc
+
+depend: []
+
+softdepend:
+  - LuckPerms
+
+commands:
+  discordauth:
+    description: Main Dis2FA command
+    aliases: [da]
+    usage: /<command> [help|status|reload]
+  unlink:
+    description: Unlink your Discord account
+    usage: /<command>
+
+permissions:
+  discordauth.use:
+    description: Allows use of Dis2FA features
+    default: true
+  discordauth.admin:
+    description: Allows admin commands like reload
+    default: op
